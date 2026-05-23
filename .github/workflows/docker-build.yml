@@ -7,11 +7,15 @@ on:
       - completed
   workflow_dispatch:
 
+permissions:
+  contents: read
+  packages: write
+
 jobs:
   build:
     name: Build LibreTV image
     runs-on: ubuntu-latest
-    if: (github.event.workflow_run.conclusion == 'success' && github.repository == 'LibreSpark/LibreTV') || (github.repository == 'bestZwei/libretv')
+    if: github.repository == 'KUAILESHANGWEI/LibreTV' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
 
     steps:
       - name: Check out repository
@@ -26,13 +30,10 @@ jobs:
       - name: Set Docker image tag based on repository
         id: set-tag
         run: |
-          if [ "${{ github.repository }}" = "LibreSpark/LibreTV" ]; then
-            echo "IMAGE_NAME=libretv" >> $GITHUB_OUTPUT
-            echo "TAGS=${{ secrets.DOCKER_USERNAME }}/libretv:latest,${{ secrets.DOCKER_USERNAME }}/libretv:${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
-          else
-            echo "IMAGE_NAME=libretv-beta" >> $GITHUB_OUTPUT
-            echo "TAGS=${{ secrets.DOCKER_USERNAME }}/libretv-beta:latest" >> $GITHUB_OUTPUT
-          fi
+          OWNER_LC=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          IMAGE="ghcr.io/${OWNER_LC}/libretv"
+          echo "IMAGE_NAME=${IMAGE}" >> $GITHUB_OUTPUT
+          echo "TAGS=${IMAGE}:latest,${IMAGE}:${{ steps.version.outputs.VERSION }}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker QEMU
         uses: docker/setup-qemu-action@v3
@@ -40,11 +41,12 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Login to DockerHub
+      - name: Login to GitHub Container Registry
         uses: docker/login-action@v3
         with:
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push LibreTV image
         uses: docker/build-push-action@v6.14.0
